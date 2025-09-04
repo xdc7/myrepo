@@ -1,0 +1,65 @@
+name: Release to QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version or tag to release
+        required: false
+        default: latest
+  push:
+    branches: [ "release/qa", "master" ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+
+concurrency:
+  group: release-qa-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ENVIRONMENT: qa
+
+jobs:
+  deploy:
+    name: Deploy to QA
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: qa
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm ci || npm install
+
+      - name: Build
+        if: ${{ hashFiles('package.json') != '' }}
+        run: npm run build --if-present
+
+      - name: Configure Cloud Credentials (example)
+        if: ${{ env.CLOUD_PROVIDER == 'aws' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_QA }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Deploy (placeholder)
+        run: |
+          echo "Deploying to $ENVIRONMENT environment"
+          # Add your deploy steps here, e.g., serverless, kubectl, terraform apply, etc.
+

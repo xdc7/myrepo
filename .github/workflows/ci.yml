@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Node.js (npm) workflow if package.json is present
+      - name: Setup Node.js
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm ci || npm install
+
+      - name: Lint (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm run lint --if-present
+
+      - name: Build (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm run build --if-present
+
+      - name: Test (npm)
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          npm test --if-present --silent
+
+      # Python workflow if requirements.txt or pyproject.toml is present
+      - name: Setup Python
+        if: ${{ hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install (pip - requirements.txt)
+        if: ${{ hashFiles('requirements.txt') != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install (pip - pyproject.toml)
+        if: ${{ hashFiles('pyproject.toml') != '' }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      - name: Lint (flake8)
+        if: ${{ hashFiles('.flake8') != '' }}
+        run: |
+          pip install flake8
+          flake8
+
+      - name: Test (pytest)
+        if: ${{ (hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != '') && (hashFiles('tests/**') != '' || hashFiles('**/tests/**') != '') }}
+        run: |
+          pip install pytest
+          pytest -q
+
+      # Shellcheck if there are shell scripts
+      - name: Shellcheck
+        if: ${{ hashFiles('**/*.sh') != '' }}
+        uses: ludeeus/action-shellcheck@2.0.0
+
