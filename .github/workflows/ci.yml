@@ -14,6 +14,8 @@ jobs:
   build-and-test:
     name: Build and Test
     runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: project.settings.dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,6 +64,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Prepare Django env
+        if: ${{ hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != '' }}
+        run: |
+          echo "SECRET_KEY=test-ci" > .env
+          echo "DEBUG=True" >> .env
+          echo "ALLOWED_HOSTS=*" >> .env
+          mkdir -p static staticfiles
+
       - name: Install (pip - pyproject.toml)
         if: ${{ hashFiles('pyproject.toml') != '' }}
         run: |
@@ -84,6 +94,7 @@ jobs:
         if: ${{ (hashFiles('requirements.txt') != '' || hashFiles('pyproject.toml') != '') && (hashFiles('tests/**') != '' || hashFiles('**/tests/**') != '') }}
         run: |
           pip install pytest pytest-django
+          python manage.py migrate --noinput
           pytest -q
 
       # Shellcheck if there are shell scripts
